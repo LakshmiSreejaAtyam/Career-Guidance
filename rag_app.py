@@ -41,17 +41,23 @@ def refine_response(model, user_query, matched_data):
 
 def main():
     st.title("Career RAG Assistant 🎯")
-    st.write("Upload your career dataset and ask questions based on its content!")
+    st.write("Upload your career dataset (.csv) or a text document (.txt) and ask questions based on its content!")
 
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
+    uploaded_file = st.file_uploader("Upload a CSV or TXT file", type=["csv", "txt"])
+
     if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        if df.empty:
-            st.error("Uploaded file is empty.")
-            return
+        file_type = uploaded_file.name.split('.')[-1]
 
-        df = preprocess_career_data(df)
-        vectorizer, vectors = create_vectorizer(df)
+        if file_type == "csv":
+            df = pd.read_csv(uploaded_file)
+            if df.empty:
+                st.error("Uploaded CSV is empty.")
+                return
+            df = preprocess_career_data(df)
+            vectorizer, vectors = create_vectorizer(df)
+
+        elif file_type == "txt":
+            text_data = uploaded_file.read().decode("utf-8")
 
         API_KEY = st.secrets.get("GOOGLE_API_KEY")
         if not API_KEY:
@@ -64,7 +70,7 @@ def main():
         for msg in st.session_state.conversation:
             st.markdown(
                 f"<div style='background-color: #e6f7ff; padding:10px; border-radius:10px; margin:5px 0;'>"
-                f"<strong>{msg['role']}:</strong> {msg['content']}</div>", 
+                f"<strong>{msg['role']}:</strong> {msg['content']}</div>",
                 unsafe_allow_html=True
             )
 
@@ -72,29 +78,37 @@ def main():
 
         if user_query:
             st.session_state.conversation.append({"role": "User", "content": user_query})
-            best_match, score = find_best_match(user_query, vectorizer, vectors, df)
 
-            if best_match is not None:
-                with st.spinner("Generating refined response..."):
-                    refined = refine_response(model, user_query, best_match.to_dict())
-                    st.session_state.conversation.append({"role": "Bot", "content": refined})
-                    st.markdown(
-                        f"<div style='background-color: #f0f0f0; padding:10px; border-radius:10px; margin:5px 0;'>"
-                        f"<strong>Bot:</strong> {refined}</div>", 
-                        unsafe_allow_html=True
-                    )
-            else:
-                try:
+            if file_type == "csv":
+                best_match, score = find_best_match(user_query, vectorizer, vectors, df)
+                if best_match is not None:
+                    with st.spinner("Generating refined response..."):
+                        refined = refine_response(model, user_query, best_match.to_dict())
+                        st.session_state.conversation.append({"role": "Bot", "content": refined})
+                        st.markdown(
+                            f"<div style='background-color: #f0f0f0; padding:10px; border-radius:10px; margin:5px 0;'>"
+                            f"<strong>Bot:</strong> {refined}</div>",
+                            unsafe_allow_html=True
+                        )
+                else:
                     fallback_prompt = f"User: {user_query}\nProvide career advice based on this query."
                     response = model.generate_content(fallback_prompt)
                     st.session_state.conversation.append({"role": "Bot", "content": response.text})
                     st.markdown(
                         f"<div style='background-color: #f0f0f0; padding:10px; border-radius:10px; margin:5px 0;'>"
-                        f"<strong>Bot:</strong> {response.text}</div>", 
+                        f"<strong>Bot:</strong> {response.text}</div>",
                         unsafe_allow_html=True
                     )
-                except Exception as e:
-                    st.error(f"Error generating response: {e}")
+
+            elif file_type == "txt":
+                context_prompt = f"The following is the uploaded document:\n{text_data}\n\nUser's Question: {user_query}\n\nAnswer:"
+                response = model.generate_content(context_prompt)
+                st.session_state.conversation.append({"role": "Bot", "content": response.text})
+                st.markdown(
+                    f"<div style='background-color: #f0f0f0; padding:10px; border-radius:10px; margin:5px 0;'>"
+                    f"<strong>Bot:</strong> {response.text}</div>",
+                    unsafe_allow_html=True
+                )
 
 if __name__ == "__main__":
     main()
