@@ -7,7 +7,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 st.set_page_config(page_title="Career Chatbot 🎯", page_icon="💼", layout="centered")
 
-# Initialize conversation history
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 
@@ -73,21 +72,33 @@ def career_chatbot(df, vectorizer, job_vectors, generative_model):
     st.markdown("### Conversation History")
     for message in st.session_state.conversation:
         if message["role"] == "User":
-            st.markdown(f"<div style='background-color: #e6f7ff; padding: 10px; border-radius: 10px; margin: 5px 0;'><strong>You:</strong> {message['content']}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='background-color: #e6f7ff; padding: 10px; border-radius: 10px; margin: 5px 0;'>"
+                f"<strong>You:</strong> {message['content']}</div>", 
+                unsafe_allow_html=True
+            )
         else:
-            st.markdown(f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 10px; margin: 5px 0;'><strong>Bot:</strong> {message['content']}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 10px; margin: 5px 0;'>"
+                f"<strong>Bot:</strong> {message['content']}</div>", 
+                unsafe_allow_html=True
+            )
 
     user_query = st.text_input("User:", placeholder="Type your career-related question here...", key="user_input")
 
     if user_query:
-        st.session_state.conversation.append({"role": "You", "content": user_query})
+        st.session_state.conversation.append({"role": "User", "content": user_query})
         best_job = find_best_job(user_query, vectorizer, job_vectors, df)
 
         if best_job is not None:
             with st.spinner("Refining the career advice..."):
                 refined_advice = refine_career_advice(generative_model, user_query, best_job)
                 st.session_state.conversation.append({"role": "Bot", "content": refined_advice})
-                st.markdown(f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 10px; margin: 5px 0;'><strong>Bot (refined advice):</strong> {refined_advice}</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 10px; margin: 5px 0;'>"
+                    f"<strong>Bot (refined advice):</strong> {refined_advice}</div>", 
+                    unsafe_allow_html=True
+                )
         else:
             try:
                 context = """
@@ -98,7 +109,11 @@ def career_chatbot(df, vectorizer, job_vectors, generative_model):
                 prompt = f"{context}\n\nUser: {user_query}\nBot:"
                 response = generative_model.generate_content(prompt)
                 st.session_state.conversation.append({"role": "Bot", "content": response.text})
-                st.markdown(f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 10px; margin: 5px 0;'><strong>Bot (AI-generated):</strong> {response.text}</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 10px; margin: 5px 0;'>"
+                    f"<strong>Bot (AI-generated):</strong> {response.text}</div>", 
+                    unsafe_allow_html=True
+                )
             except Exception as e:
                 st.error(f"Sorry, I couldn't generate a response. Error: {e}")
 
@@ -109,9 +124,9 @@ def main():
         return
     df = preprocess_career_data(df)
     vectorizer, job_vectors = create_career_vectorizer(df)
-    API_KEY = "AIzaSyCMmi8Hzd7GHOzRtbTvsRJTX1CifvJEpFQ"
+    API_KEY = st.secrets.get("GOOGLE_API_KEY")
     if not API_KEY:
-        st.error("API key not found. Please set the GOOGLE_API_KEY environment variable.")
+        st.error("API key not found. Please set the GOOGLE_API_KEY in Streamlit Secrets.")
         return
     generative_model = configure_generative_model(API_KEY)
     if generative_model is None:
@@ -120,4 +135,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
